@@ -601,6 +601,9 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
     }
 
     if (!ui->actionKeyboardControl->isChecked()) {
+        // Reset key states when keyboard control is disabled
+        mKeyLeft = false;
+        mKeyRight = false;
         return false;
     }
 
@@ -632,20 +635,56 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
         switch(keyEvent->key()) {
         case Qt::Key_Up:
             if (isPress) {
+                // Store current CAN settings
+                bool wasSendingCan = mVesc->commands()->getSendCan();
+                int prevCanId = mVesc->commands()->getCanSendId();
+                
+                // Send command to local VESC (ID -1)
+                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(ui->currentBox->value());
+                
+                // Restore previous CAN settings
+                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(true);
             } else {
+                // Store current CAN settings
+                bool wasSendingCan = mVesc->commands()->getSendCan();
+                int prevCanId = mVesc->commands()->getCanSendId();
+                
+                // Send command to local VESC (ID -1)
+                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(0.0);
+                
+                // Restore previous CAN settings
+                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(false);
             }
             break;
 
         case Qt::Key_Down:
             if (isPress) {
+                // Store current CAN settings
+                bool wasSendingCan = mVesc->commands()->getSendCan();
+                int prevCanId = mVesc->commands()->getCanSendId();
+                
+                // Send command to local VESC (ID -1)
+                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(-ui->currentBox->value());
+                
+                // Restore previous CAN settings
+                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(true);
             } else {
+                // Store current CAN settings
+                bool wasSendingCan = mVesc->commands()->getSendCan();
+                int prevCanId = mVesc->commands()->getCanSendId();
+                
+                // Send command to local VESC (ID -1)
+                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(0.0);
+                
+                // Restore previous CAN settings
+                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(false);
             }
             break;
@@ -864,45 +903,91 @@ void MainWindow::timerSlot()
     }
 
     // Handle key events
-    static double keyPower = 0.0;
-    static double lastKeyPower = 0.0;
-    const double lowPower = 0.18;
-    const double lowPowerRev = 0.1;
-    const double highPower = 0.9;
-    const double highPowerRev = 0.3;
-    const double lowStep = 0.02;
-    const double highStep = 0.01;
+    static double keyCurrent = 0.0;
+    static double lastKeyCurrent = 0.0;
+    static bool wasKeyboardControlEnabled = false;
+    const double maxCurrent = ui->currentBox->value();
+    const double currentStep = maxCurrent / 50.0; // Adjust for smoother or faster response
 
-    if (mKeyRight && mKeyLeft) {
-        if (keyPower >= lowPower) {
-            stepTowards(keyPower, highPower, highStep);
-        } else if (keyPower <= -lowPower) {
-            stepTowards(keyPower, -highPowerRev, highStep);
-        } else if (keyPower >= 0) {
-            stepTowards(keyPower, highPower, lowStep);
+    // Check if keyboard control was just disabled
+    if (wasKeyboardControlEnabled && !ui->actionKeyboardControl->isChecked()) {
+        // Reset current to zero immediately when keyboard control is disabled
+        keyCurrent = 0.0;
+        lastKeyCurrent = 0.0;
+        
+        // Send zero current to both motors
+        bool wasSendingCan = mVesc->commands()->getSendCan();
+        int prevCanId = mVesc->commands()->getCanSendId();
+        
+        // Local motor
+        mVesc->commands()->setSendCan(false);
+        mVesc->commands()->setCurrent(0.0);
+        
+        // CAN motor with ID 70 - use canTmpOverride to ensure it works
+        mVesc->canTmpOverride(true, 70);
+        mVesc->commands()->setCurrent(0.0);
+        mVesc->canTmpOverrideEnd();
+        
+        // Restore settings
+        mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
+    }
+    
+    wasKeyboardControlEnabled = ui->actionKeyboardControl->isChecked();
+    
+    // Only process key events if keyboard control is enabled
+    if (ui->actionKeyboardControl->isChecked()) {
+        if (mKeyRight && mKeyLeft) {
+            // Both keys pressed - set current to zero
+            keyCurrent = 0.0;
+        } else if (mKeyRight) {
+            // Right key - increase current (positive direction)
+            if (keyCurrent < maxCurrent) {
+                keyCurrent += currentStep;
+                if (keyCurrent > maxCurrent) {
+                    keyCurrent = maxCurrent;
+                }
+            }
+        } else if (mKeyLeft) {
+            // Left key - increase current (negative direction)
+            if (keyCurrent > -maxCurrent) {
+                keyCurrent -= currentStep;
+                if (keyCurrent < -maxCurrent) {
+                    keyCurrent = -maxCurrent;
+                }
+            }
         } else {
-            stepTowards(keyPower, -highPowerRev, lowStep);
+            // No keys pressed - immediately return to zero
+            keyCurrent = 0.0;
         }
-    } else if (mKeyRight) {
-        if (fabs(keyPower) > lowPower) {
-            stepTowards(keyPower, lowPower, highStep);
-        } else {
-            stepTowards(keyPower, lowPower, lowStep);
-        }
-    } else if (mKeyLeft) {
-        if (fabs(keyPower) > lowPower) {
-            stepTowards(keyPower, -lowPowerRev, highStep);
-        } else {
-            stepTowards(keyPower, -lowPowerRev, lowStep);
+
+        if (keyCurrent != lastKeyCurrent) {
+            lastKeyCurrent = keyCurrent;
+            
+            // Store current CAN settings
+            bool wasSendingCan = mVesc->commands()->getSendCan();
+            int prevCanId = mVesc->commands()->getCanSendId();
+            
+            // Always send directly to CAN ID 70, bypassing the current CAN selection
+            mVesc->canTmpOverride(true, 70);
+            mVesc->commands()->setCurrent(keyCurrent);
+            mVesc->canTmpOverrideEnd();
+            
+            // Debug output to help diagnose issues
+            if (keyCurrent != 0.0) {
+                mPageDebugPrint->printConsole(QString("Sending current %1A to CAN ID 70<br>").arg(keyCurrent));
+            }
+            
+            // Restore previous CAN settings
+            mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
+            
+            if (keyCurrent != 0.0) {
+                ui->actionSendAlive->setChecked(true);
+            }
         }
     } else {
-        stepTowards(keyPower, 0.0, lowStep * 3);
-    }
-
-    if (keyPower != lastKeyPower) {
-        lastKeyPower = keyPower;
-        mVesc->commands()->setDutyCycle(keyPower);
-        ui->actionSendAlive->setChecked(true);
+        // Keyboard control is disabled, ensure current is zero
+        keyCurrent = 0.0;
+        lastKeyCurrent = 0.0;
     }
 
     // Run startup checks
