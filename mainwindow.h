@@ -173,6 +173,10 @@ private:
     int mStatusInfoTime;
     bool mKeyLeft;
     bool mKeyRight;
+    bool mKeyW;
+    bool mKeyA;
+    bool mKeyS;
+    bool mKeyD;
     bool mMcConfRead;
     bool mAppConfRead;
     QMap<QString, int> mPageNameIdList;
@@ -238,6 +242,10 @@ private:
     void showPage(const QString &name);
     void reloadPages();
     void checkUdev();
+    // Helper functions for independent motor control
+    void setMotorCurrent(int canId, double current);
+    void setMotorDuty(int canId, double duty);
+    void stopAllMotors();
 #ifdef Q_OS_LINUX
     bool waitProcess(QProcess &process, bool block = true, int timeoutMs = 300000);
     QString runCmd(QString cmd, QStringList args);

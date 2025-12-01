@@ -224,6 +224,10 @@ MainWindow::MainWindow(QWidget *parent) :
     mTimer = new QTimer(this);
     mKeyLeft = false;
     mKeyRight = false;
+    mKeyW = false;
+    mKeyA = false;
+    mKeyS = false;
+    mKeyD = false;
 
     connect(mDebugTimer, SIGNAL(timeout()),
             this, SLOT(timerSlotDebugMsg()));
@@ -583,6 +587,61 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::setMotorCurrent(int canId, double current)
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Set CAN ID for the specific motor
+    mVesc->commands()->setSendCan(true, canId);
+    
+    // Set the current
+    mVesc->commands()->setCurrent(current);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
+void MainWindow::setMotorDuty(int canId, double duty)
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Set CAN ID for the specific motor
+    mVesc->commands()->setSendCan(true, canId);
+    
+    // Set the duty cycle
+    mVesc->commands()->setDutyCycle(duty);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
+void MainWindow::stopAllMotors()
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Get the list of CAN devices
+    QVector<int> canDevs = Utility::scanCanVescOnly(mVesc);
+    
+    // Stop each motor
+    for (int id : canDevs) {
+        mVesc->commands()->setSendCan(true, id);
+        mVesc->commands()->setCurrent(0.0);
+    }
+    
+    // Also stop the main VESC
+    mVesc->commands()->setSendCan(false);
+    mVesc->commands()->setCurrent(0.0);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
 bool MainWindow::eventFilter(QObject *object, QEvent *e)
 {
     (void)object;
@@ -590,6 +649,10 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
     if (!mVesc->isPortConnected()) {
         return false;
     }
+    
+    // This event filter handles keyboard controls:
+    // Arrow keys: Control the directly connected motor
+    // WASD keys: Control the motor with CAN ID 70
 
     QKeyEvent *keyEvent = static_cast<QKeyEvent *>(e);
 
@@ -601,9 +664,6 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
     }
 
     if (!ui->actionKeyboardControl->isChecked()) {
-        // Reset key states when keyboard control is disabled
-        mKeyLeft = false;
-        mKeyRight = false;
         return false;
     }
 
@@ -622,6 +682,10 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
         case Qt::Key_Left:
         case Qt::Key_Right:
         case Qt::Key_PageDown:
+        case Qt::Key_W:
+        case Qt::Key_A:
+        case Qt::Key_S:
+        case Qt::Key_D:
             break;
 
         default:
@@ -635,56 +699,20 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
         switch(keyEvent->key()) {
         case Qt::Key_Up:
             if (isPress) {
-                // Store current CAN settings
-                bool wasSendingCan = mVesc->commands()->getSendCan();
-                int prevCanId = mVesc->commands()->getCanSendId();
-                
-                // Send command to local VESC (ID -1)
-                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(ui->currentBox->value());
-                
-                // Restore previous CAN settings
-                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(true);
             } else {
-                // Store current CAN settings
-                bool wasSendingCan = mVesc->commands()->getSendCan();
-                int prevCanId = mVesc->commands()->getCanSendId();
-                
-                // Send command to local VESC (ID -1)
-                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(0.0);
-                
-                // Restore previous CAN settings
-                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(false);
             }
             break;
 
         case Qt::Key_Down:
             if (isPress) {
-                // Store current CAN settings
-                bool wasSendingCan = mVesc->commands()->getSendCan();
-                int prevCanId = mVesc->commands()->getCanSendId();
-                
-                // Send command to local VESC (ID -1)
-                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(-ui->currentBox->value());
-                
-                // Restore previous CAN settings
-                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(true);
             } else {
-                // Store current CAN settings
-                bool wasSendingCan = mVesc->commands()->getSendCan();
-                int prevCanId = mVesc->commands()->getCanSendId();
-                
-                // Send command to local VESC (ID -1)
-                mVesc->commands()->setSendCan(false);
                 mVesc->commands()->setCurrent(0.0);
-                
-                // Restore previous CAN settings
-                mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
                 ui->actionSendAlive->setChecked(false);
             }
             break;
@@ -702,6 +730,44 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
                 mKeyRight = true;
             } else {
                 mKeyRight = false;
+            }
+            break;
+
+        case Qt::Key_W:
+            if (isPress) {
+                // Use helper function to control CAN ID 70 without changing UI selection
+                setMotorCurrent(70, ui->currentBox->value());
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                setMotorCurrent(70, 0.0);
+                ui->actionSendAlive->setChecked(false);
+            }
+            break;
+
+        case Qt::Key_S:
+            if (isPress) {
+                // Use helper function to control CAN ID 70 without changing UI selection
+                setMotorCurrent(70, -ui->currentBox->value());
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                setMotorCurrent(70, 0.0);
+                ui->actionSendAlive->setChecked(false);
+            }
+            break;
+
+        case Qt::Key_A:
+            if (isPress) {
+                mKeyA = true;
+            } else {
+                mKeyA = false;
+            }
+            break;
+
+        case Qt::Key_D:
+            if (isPress) {
+                mKeyD = true;
+            } else {
+                mKeyD = false;
             }
             break;
 
@@ -902,92 +968,83 @@ void MainWindow::timerSlot()
         mPageLisp->disablePolling();
     }
 
-    // Handle key events
-    static double keyCurrent = 0.0;
-    static double lastKeyCurrent = 0.0;
-    static bool wasKeyboardControlEnabled = false;
-    const double maxCurrent = ui->currentBox->value();
-    const double currentStep = maxCurrent / 50.0; // Adjust for smoother or faster response
+    // Handle key events for arrow keys
+    static double keyPower = 0.0;
+    static double lastKeyPower = 0.0;
+    const double lowPower = 0.18;
+    const double lowPowerRev = 0.1;
+    const double highPower = 0.9;
+    const double highPowerRev = 0.3;
+    const double lowStep = 0.02;
+    const double highStep = 0.01;
 
-    // Check if keyboard control was just disabled
-    if (wasKeyboardControlEnabled && !ui->actionKeyboardControl->isChecked()) {
-        // Reset current to zero immediately when keyboard control is disabled
-        keyCurrent = 0.0;
-        lastKeyCurrent = 0.0;
-        
-        // Send zero current to both motors
-        bool wasSendingCan = mVesc->commands()->getSendCan();
-        int prevCanId = mVesc->commands()->getCanSendId();
-        
-        // Local motor
-        mVesc->commands()->setSendCan(false);
-        mVesc->commands()->setCurrent(0.0);
-        
-        // CAN motor with ID 70 - use canTmpOverride to ensure it works
-        mVesc->canTmpOverride(true, 70);
-        mVesc->commands()->setCurrent(0.0);
-        mVesc->canTmpOverrideEnd();
-        
-        // Restore settings
-        mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
-    }
-    
-    wasKeyboardControlEnabled = ui->actionKeyboardControl->isChecked();
-    
-    // Only process key events if keyboard control is enabled
-    if (ui->actionKeyboardControl->isChecked()) {
-        if (mKeyRight && mKeyLeft) {
-            // Both keys pressed - set current to zero
-            keyCurrent = 0.0;
-        } else if (mKeyRight) {
-            // Right key - increase current (positive direction)
-            if (keyCurrent < maxCurrent) {
-                keyCurrent += currentStep;
-                if (keyCurrent > maxCurrent) {
-                    keyCurrent = maxCurrent;
-                }
-            }
-        } else if (mKeyLeft) {
-            // Left key - increase current (negative direction)
-            if (keyCurrent > -maxCurrent) {
-                keyCurrent -= currentStep;
-                if (keyCurrent < -maxCurrent) {
-                    keyCurrent = -maxCurrent;
-                }
-            }
+    if (mKeyRight && mKeyLeft) {
+        if (keyPower >= lowPower) {
+            stepTowards(keyPower, highPower, highStep);
+        } else if (keyPower <= -lowPower) {
+            stepTowards(keyPower, -highPowerRev, highStep);
+        } else if (keyPower >= 0) {
+            stepTowards(keyPower, highPower, lowStep);
         } else {
-            // No keys pressed - immediately return to zero
-            keyCurrent = 0.0;
+            stepTowards(keyPower, -highPowerRev, lowStep);
         }
-
-        if (keyCurrent != lastKeyCurrent) {
-            lastKeyCurrent = keyCurrent;
-            
-            // Store current CAN settings
-            bool wasSendingCan = mVesc->commands()->getSendCan();
-            int prevCanId = mVesc->commands()->getCanSendId();
-            
-            // Always send directly to CAN ID 70, bypassing the current CAN selection
-            mVesc->canTmpOverride(true, 70);
-            mVesc->commands()->setCurrent(keyCurrent);
-            mVesc->canTmpOverrideEnd();
-            
-            // Debug output to help diagnose issues
-            if (keyCurrent != 0.0) {
-                mPageDebugPrint->printConsole(QString("Sending current %1A to CAN ID 70<br>").arg(keyCurrent));
-            }
-            
-            // Restore previous CAN settings
-            mVesc->commands()->setSendCan(wasSendingCan, prevCanId);
-            
-            if (keyCurrent != 0.0) {
-                ui->actionSendAlive->setChecked(true);
-            }
+    } else if (mKeyRight) {
+        if (fabs(keyPower) > lowPower) {
+            stepTowards(keyPower, lowPower, highStep);
+        } else {
+            stepTowards(keyPower, lowPower, lowStep);
+        }
+    } else if (mKeyLeft) {
+        if (fabs(keyPower) > lowPower) {
+            stepTowards(keyPower, -lowPowerRev, highStep);
+        } else {
+            stepTowards(keyPower, -lowPowerRev, lowStep);
         }
     } else {
-        // Keyboard control is disabled, ensure current is zero
-        keyCurrent = 0.0;
-        lastKeyCurrent = 0.0;
+        stepTowards(keyPower, 0.0, lowStep * 3);
+    }
+
+    if (keyPower != lastKeyPower) {
+        lastKeyPower = keyPower;
+        mVesc->commands()->setDutyCycle(keyPower);
+        ui->actionSendAlive->setChecked(true);
+    }
+    
+    // Handle A/D keys for the second motor (CAN ID 70)
+    static double keyPower2 = 0.0;
+    static double lastKeyPower2 = 0.0;
+    
+    if (mKeyD && mKeyA) {
+        if (keyPower2 >= lowPower) {
+            stepTowards(keyPower2, highPower, highStep);
+        } else if (keyPower2 <= -lowPower) {
+            stepTowards(keyPower2, -highPowerRev, highStep);
+        } else if (keyPower2 >= 0) {
+            stepTowards(keyPower2, highPower, lowStep);
+        } else {
+            stepTowards(keyPower2, -highPowerRev, lowStep);
+        }
+    } else if (mKeyD) {
+        if (fabs(keyPower2) > lowPower) {
+            stepTowards(keyPower2, lowPower, highStep);
+        } else {
+            stepTowards(keyPower2, lowPower, lowStep);
+        }
+    } else if (mKeyA) {
+        if (fabs(keyPower2) > lowPower) {
+            stepTowards(keyPower2, -lowPowerRev, highStep);
+        } else {
+            stepTowards(keyPower2, -lowPowerRev, lowStep);
+        }
+    } else {
+        stepTowards(keyPower2, 0.0, lowStep * 3);
+    }
+
+    if (keyPower2 != lastKeyPower2) {
+        lastKeyPower2 = keyPower2;
+        // Use helper function to control CAN ID 70 without changing UI selection
+        setMotorDuty(70, keyPower2);
+        ui->actionSendAlive->setChecked(true);
     }
 
     // Run startup checks
@@ -1169,6 +1226,9 @@ void MainWindow::on_stopButton_clicked()
     }
     mPageExperiments->stop();
     ui->actionSendAlive->setChecked(false);
+    
+    // Also stop any motors controlled by WASD
+    stopAllMotors();
 }
 
 void MainWindow::on_fullBrakeButton_clicked()
