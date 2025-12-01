@@ -228,6 +228,29 @@ MainWindow::MainWindow(QWidget *parent) :
     mKeyA = false;
     mKeyS = false;
     mKeyD = false;
+    
+    // Set up WASD timer for motor ID 70 control
+    mWasdTimer.setInterval(50); // 50ms interval for smooth control
+    connect(&mWasdTimer, &QTimer::timeout, this, [this]() {
+        if (mKeyW) {
+            setMotorCurrent(70, ui->currentBox->value());
+        } else if (mKeyS) {
+            setMotorCurrent(70, -ui->currentBox->value());
+        } else if (mKeyA || mKeyD) {
+            // For A/D keys, use the duty cycle control logic
+            double keyPower2 = 0.0;
+            const double lowPower = 0.18;
+            const double lowPowerRev = 0.1;
+            
+            if (mKeyA && !mKeyD) {
+                keyPower2 = -lowPowerRev;
+            } else if (mKeyD && !mKeyA) {
+                keyPower2 = lowPower;
+            }
+            
+            setMotorDuty(70, keyPower2);
+        }
+    });
 
     connect(mDebugTimer, SIGNAL(timeout()),
             this, SLOT(timerSlotDebugMsg()));
@@ -735,39 +758,77 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
 
         case Qt::Key_W:
             if (isPress) {
-                // Use helper function to control CAN ID 70 without changing UI selection
-                setMotorCurrent(70, ui->currentBox->value());
+                mKeyW = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
                 ui->actionSendAlive->setChecked(true);
             } else {
-                setMotorCurrent(70, 0.0);
-                ui->actionSendAlive->setChecked(false);
+                mKeyW = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyA || mKeyS || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
             }
             break;
 
         case Qt::Key_S:
             if (isPress) {
-                // Use helper function to control CAN ID 70 without changing UI selection
-                setMotorCurrent(70, -ui->currentBox->value());
+                mKeyS = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
                 ui->actionSendAlive->setChecked(true);
             } else {
-                setMotorCurrent(70, 0.0);
-                ui->actionSendAlive->setChecked(false);
+                mKeyS = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyA || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
             }
             break;
 
         case Qt::Key_A:
             if (isPress) {
                 mKeyA = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
             } else {
                 mKeyA = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyS || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
             }
             break;
 
         case Qt::Key_D:
             if (isPress) {
                 mKeyD = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
             } else {
                 mKeyD = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyA || mKeyS)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
             }
             break;
 
@@ -1011,41 +1072,7 @@ void MainWindow::timerSlot()
     }
     
     // Handle A/D keys for the second motor (CAN ID 70)
-    static double keyPower2 = 0.0;
-    static double lastKeyPower2 = 0.0;
-    
-    if (mKeyD && mKeyA) {
-        if (keyPower2 >= lowPower) {
-            stepTowards(keyPower2, highPower, highStep);
-        } else if (keyPower2 <= -lowPower) {
-            stepTowards(keyPower2, -highPowerRev, highStep);
-        } else if (keyPower2 >= 0) {
-            stepTowards(keyPower2, highPower, lowStep);
-        } else {
-            stepTowards(keyPower2, -highPowerRev, lowStep);
-        }
-    } else if (mKeyD) {
-        if (fabs(keyPower2) > lowPower) {
-            stepTowards(keyPower2, lowPower, highStep);
-        } else {
-            stepTowards(keyPower2, lowPower, lowStep);
-        }
-    } else if (mKeyA) {
-        if (fabs(keyPower2) > lowPower) {
-            stepTowards(keyPower2, -lowPowerRev, highStep);
-        } else {
-            stepTowards(keyPower2, -lowPowerRev, lowStep);
-        }
-    } else {
-        stepTowards(keyPower2, 0.0, lowStep * 3);
-    }
-
-    if (keyPower2 != lastKeyPower2) {
-        lastKeyPower2 = keyPower2;
-        // Use helper function to control CAN ID 70 without changing UI selection
-        setMotorDuty(70, keyPower2);
-        ui->actionSendAlive->setChecked(true);
-    }
+    // This is now handled by the dedicated mWasdTimer
 
     // Run startup checks
     static bool has_run_start_checks = false;

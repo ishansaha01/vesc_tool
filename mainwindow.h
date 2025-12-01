@@ -190,6 +190,7 @@ private:
     QTimer mPollBmsTimer;
     QTimer mPortTimer;
     QTimer mSettingSyncTimer;
+    QTimer mWasdTimer; // Timer for WASD control of motor ID 70
 
     PageWelcome *mPageWelcome;
     PageConnection *mPageConnection;
