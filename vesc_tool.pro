@@ -334,10 +334,6 @@ DISTFILES += \
 
 ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
 
-macx-clang:contains(QMAKE_HOST.arch, arm.*): {
-    QMAKE_APPLE_DEVICE_ARCHS=arm64
-}
-
 macx {
     ICON        =  macos/appIcon.icns
     QMAKE_INFO_PLIST = macos/Info.plist
@@ -346,7 +342,13 @@ macx {
     QMAKE_CXXFLAGS_RELEASE = $$QMAKE_CXXFLAGS_RELEASE_WITH_DEBUGINFO
     QMAKE_OBJECTIVE_CFLAGS_RELEASE = $$QMAKE_OBJECTIVE_CFLAGS_RELEASE_WITH_DEBUGINFO
     QMAKE_LFLAGS_RELEASE = $$QMAKE_LFLAGS_RELEASE_WITH_DEBUGINFO
-    QMAKE_APPLE_DEVICE_ARCHS = x86_64 arm64
+    
+    # Use only the native architecture since Qt libraries are not universal
+    contains(QMAKE_HOST.arch, arm.*) {
+        QMAKE_APPLE_DEVICE_ARCHS = arm64
+    } else {
+        QMAKE_APPLE_DEVICE_ARCHS = x86_64
+    }
 }
 
 ios {

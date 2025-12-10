@@ -224,6 +224,33 @@ MainWindow::MainWindow(QWidget *parent) :
     mTimer = new QTimer(this);
     mKeyLeft = false;
     mKeyRight = false;
+    mKeyW = false;
+    mKeyA = false;
+    mKeyS = false;
+    mKeyD = false;
+    
+    // Set up WASD timer for motor ID 70 control
+    mWasdTimer.setInterval(50); // 50ms interval for smooth control
+    connect(&mWasdTimer, &QTimer::timeout, this, [this]() {
+        if (mKeyW) {
+            setMotorCurrent(70, ui->currentBox->value());
+        } else if (mKeyS) {
+            setMotorCurrent(70, -ui->currentBox->value());
+        } else if (mKeyA || mKeyD) {
+            // For A/D keys, use the duty cycle control logic
+            double keyPower2 = 0.0;
+            const double lowPower = 0.18;
+            const double lowPowerRev = 0.1;
+            
+            if (mKeyA && !mKeyD) {
+                keyPower2 = -lowPowerRev;
+            } else if (mKeyD && !mKeyA) {
+                keyPower2 = lowPower;
+            }
+            
+            setMotorDuty(70, keyPower2);
+        }
+    });
 
     connect(mDebugTimer, SIGNAL(timeout()),
             this, SLOT(timerSlotDebugMsg()));
@@ -583,6 +610,61 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::setMotorCurrent(int canId, double current)
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Set CAN ID for the specific motor
+    mVesc->commands()->setSendCan(true, canId);
+    
+    // Set the current
+    mVesc->commands()->setCurrent(current);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
+void MainWindow::setMotorDuty(int canId, double duty)
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Set CAN ID for the specific motor
+    mVesc->commands()->setSendCan(true, canId);
+    
+    // Set the duty cycle
+    mVesc->commands()->setDutyCycle(duty);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
+void MainWindow::stopAllMotors()
+{
+    // Store the original CAN settings
+    bool wasCan = mVesc->commands()->getSendCan();
+    int prevId = mVesc->commands()->getCanSendId();
+    
+    // Get the list of CAN devices
+    QVector<int> canDevs = Utility::scanCanVescOnly(mVesc);
+    
+    // Stop each motor
+    for (int id : canDevs) {
+        mVesc->commands()->setSendCan(true, id);
+        mVesc->commands()->setCurrent(0.0);
+    }
+    
+    // Also stop the main VESC
+    mVesc->commands()->setSendCan(false);
+    mVesc->commands()->setCurrent(0.0);
+    
+    // Restore original CAN settings
+    mVesc->commands()->setSendCan(wasCan, prevId);
+}
+
 bool MainWindow::eventFilter(QObject *object, QEvent *e)
 {
     (void)object;
@@ -590,6 +672,10 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
     if (!mVesc->isPortConnected()) {
         return false;
     }
+    
+    // This event filter handles keyboard controls:
+    // Arrow keys: Control the directly connected motor
+    // WASD keys: Control the motor with CAN ID 70
 
     QKeyEvent *keyEvent = static_cast<QKeyEvent *>(e);
 
@@ -619,6 +705,10 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
         case Qt::Key_Left:
         case Qt::Key_Right:
         case Qt::Key_PageDown:
+        case Qt::Key_W:
+        case Qt::Key_A:
+        case Qt::Key_S:
+        case Qt::Key_D:
             break;
 
         default:
@@ -663,6 +753,82 @@ bool MainWindow::eventFilter(QObject *object, QEvent *e)
                 mKeyRight = true;
             } else {
                 mKeyRight = false;
+            }
+            break;
+
+        case Qt::Key_W:
+            if (isPress) {
+                mKeyW = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                mKeyW = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyA || mKeyS || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
+            }
+            break;
+
+        case Qt::Key_S:
+            if (isPress) {
+                mKeyS = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                mKeyS = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyA || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
+            }
+            break;
+
+        case Qt::Key_A:
+            if (isPress) {
+                mKeyA = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                mKeyA = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyS || mKeyD)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
+            }
+            break;
+
+        case Qt::Key_D:
+            if (isPress) {
+                mKeyD = true;
+                // Start the dedicated timer for motor ID 70 control
+                if (!mWasdTimer.isActive()) {
+                    mWasdTimer.start();
+                }
+                ui->actionSendAlive->setChecked(true);
+            } else {
+                mKeyD = false;
+                // Stop the motor if no other WASD keys are active
+                if (!(mKeyW || mKeyA || mKeyS)) {
+                    setMotorCurrent(70, 0.0);
+                    mWasdTimer.stop();
+                    ui->actionSendAlive->setChecked(false);
+                }
             }
             break;
 
@@ -863,7 +1029,7 @@ void MainWindow::timerSlot()
         mPageLisp->disablePolling();
     }
 
-    // Handle key events
+    // Handle key events for arrow keys
     static double keyPower = 0.0;
     static double lastKeyPower = 0.0;
     const double lowPower = 0.18;
@@ -904,6 +1070,9 @@ void MainWindow::timerSlot()
         mVesc->commands()->setDutyCycle(keyPower);
         ui->actionSendAlive->setChecked(true);
     }
+    
+    // Handle A/D keys for the second motor (CAN ID 70)
+    // This is now handled by the dedicated mWasdTimer
 
     // Run startup checks
     static bool has_run_start_checks = false;
@@ -1084,6 +1253,9 @@ void MainWindow::on_stopButton_clicked()
     }
     mPageExperiments->stop();
     ui->actionSendAlive->setChecked(false);
+    
+    // Also stop any motors controlled by WASD
+    stopAllMotors();
 }
 
 void MainWindow::on_fullBrakeButton_clicked()
