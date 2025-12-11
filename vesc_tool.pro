@@ -181,7 +181,14 @@ release_win {
 release_lin {
     # http://micro.nicholaswilson.me.uk/post/31855915892/rules-of-static-linking-libstdc-libc-libgcc
     # http://insanecoding.blogspot.se/2012/07/creating-portable-linux-binaries.html
-    QMAKE_LFLAGS += -static-libstdc++ -static-libgcc
+    
+    # Only use static libgcc if not explicitly disabled (for cross-platform builds)
+    !no_static_libgcc {
+        QMAKE_LFLAGS += -static-libstdc++ -static-libgcc
+    } else {
+        QMAKE_LFLAGS += -static-libstdc++
+    }
+    
     DESTDIR = build/lin
     OBJECTS_DIR = build/lin/obj
     MOC_DIR = build/lin/obj

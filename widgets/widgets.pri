@@ -24,6 +24,7 @@ FORMS += \
 HEADERS += \
     $$PWD/batttempplot.h \
     $$PWD/canlistitem.h \
+    $$PWD/directionaljoystick.h \
     $$PWD/experimentplot.h \
     $$PWD/parameditbitfield.h \
     $$PWD/parameditbool.h \
@@ -62,6 +63,7 @@ HEADERS += \
 SOURCES += \
     $$PWD/batttempplot.cpp \
     $$PWD/canlistitem.cpp \
+    $$PWD/directionaljoystick.cpp \
     $$PWD/experimentplot.cpp \
     $$PWD/parameditbitfield.cpp \
     $$PWD/parameditbool.cpp \

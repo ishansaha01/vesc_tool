@@ -6,6 +6,7 @@ FORMS += \
     $$PWD/pagecustomconfig.ui \
     $$PWD/pagedisplaytool.ui \
     $$PWD/pageespprog.ui \
+    $$PWD/pagejoystickcontrol.ui \
     $$PWD/pagelisp.ui \
     $$PWD/pagemotor.ui \
     $$PWD/pagedebugprint.ui \
@@ -47,6 +48,7 @@ HEADERS += \
     $$PWD/pagecustomconfig.h \
     $$PWD/pagedisplaytool.h \
     $$PWD/pageespprog.h \
+    $$PWD/pagejoystickcontrol.h \
     $$PWD/pagelisp.h \
     $$PWD/pagemotor.h \
     $$PWD/pagedebugprint.h \
@@ -88,6 +90,7 @@ SOURCES += \
     $$PWD/pagecustomconfig.cpp \
     $$PWD/pagedisplaytool.cpp \
     $$PWD/pageespprog.cpp \
+    $$PWD/pagejoystickcontrol.cpp \
     $$PWD/pagelisp.cpp \
     $$PWD/pagemotor.cpp \
     $$PWD/pagedebugprint.cpp \

@@ -1779,6 +1779,12 @@ void MainWindow::reloadPages()
     ui->pageWidget->addWidget(mPageMotorComparison);
     addPageItem(tr("Motor Analysis"),  theme + "icons/motor.png", "", false, true);
     mPageNameIdList.insert("motor_comparison", ui->pageList->count() - 1);
+    
+    mPageJoystickControl = new PageJoystickControl(this);
+    mPageJoystickControl->setVesc(mVesc);
+    ui->pageWidget->addWidget(mPageJoystickControl);
+    addPageItem(tr("Joystick Control"),  theme + "icons/Controller-96.png", "", false, true);
+    mPageNameIdList.insert("joystick_control", ui->pageList->count() - 1);
 
     VTextBrowser *vt = new VTextBrowser(this);
     ConfigParam *p = mVesc->infoConfig()->getParam("dev_tools_description");
@@ -2354,5 +2360,10 @@ void MainWindow::on_actionGamepadControl_triggered(bool checked)
 void MainWindow::on_actionRestartLispBM_triggered()
 {
     mVesc->commands()->lispSetRunning(1);
+}
+
+void MainWindow::on_actionJoystickControl_triggered()
+{
+    showPage("Joystick Control");
 }
 
