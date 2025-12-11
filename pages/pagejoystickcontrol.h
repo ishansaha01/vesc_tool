@@ -59,7 +59,6 @@ private:
     void saveSettings();
     void loadSettings();
     void processJoystickData(double forward, double turn);
-    void onIdealBallSizeChanged(int value);
 };
 
 #endif // PAGEJOYSTICKCONTROL_H
