@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Green Ball Tracker with TCP Output
-Tracks green objects and sends raw position data to VESC Tool over TCP.
+Green Ball Tracker with TCP Output and Visual Display
+Tracks green objects, displays camera feed with detection visualization,
+and sends raw position data to VESC Tool over TCP.
 
 Protocol:
 - Connection: TCP to localhost:65102 (default)
@@ -9,6 +10,10 @@ Protocol:
   where:
   - forward: Raw object size (radius in pixels)
   - turn: Raw distance from center (pixels, negative = left, positive = right)
+
+Display:
+- Shows camera feed with detected objects highlighted
+- Press 'q' to exit
 """
 
 import cv2
@@ -128,10 +133,17 @@ class GreenBallTracker:
     def run(self):
         """Main tracking loop"""
         try:
+            # Create a named window
+            cv2.namedWindow("Green Ball Tracker", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Green Ball Tracker", 640, 360)  # Half resolution for display
+            
             while True:
                 # Capture frame
                 frame = self.picam2.capture_array()
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                
+                # Make a copy for display
+                display_frame = frame.copy()
                 
                 # Detect green ball
                 position, radius = self.detect_green_ball(frame)
@@ -151,10 +163,32 @@ class GreenBallTracker:
                     
                     # Display raw values
                     print(f"Size: {radius}, Position from center: {position_lr} pixels")
+                    
+                    # Draw the circle and center point on the display frame
+                    cv2.circle(display_frame, (x, y), radius, (0, 255, 0), 2)
+                    cv2.circle(display_frame, (x, y), 5, (0, 0, 255), -1)
+                    
+                    # Add text with information
+                    cv2.putText(display_frame, f"Size: {radius}", (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    cv2.putText(display_frame, f"Position: {position_lr:.1f}", (10, 60), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 else:
                     # No object detected, send zero values
                     self.send_joystick_data(0.0, 0.0)
                     print("No object detected - sending (0.0, 0.0)")
+                    
+                    # Add text indicating no detection
+                    cv2.putText(display_frame, "No object detected", (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                
+                # Display the frame
+                cv2.imshow("Green Ball Tracker", display_frame)
+                
+                # Check for key press - exit on 'q'
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
                 
                 # Small delay
                 time.sleep(0.05)  # 20Hz update rate
@@ -162,6 +196,8 @@ class GreenBallTracker:
         except KeyboardInterrupt:
             print("\nExiting...")
         finally:
+            # Clean up
+            cv2.destroyAllWindows()
             self.picam2.stop()
             self.disconnect()
 
