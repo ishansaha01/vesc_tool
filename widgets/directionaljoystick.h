@@ -8,6 +8,7 @@
 #include <QPaintEvent>
 #include <QMouseEvent>
 #include <QColor>
+#include <QElapsedTimer>
 #include "vescinterface.h"
 
 class DirectionalJoystick : public QWidget
@@ -24,6 +25,10 @@ public:
     void setMaxCurrent(double current) { mMaxCurrent = current; }
     void setMaxDuty(double duty) { mMaxDuty = duty; }
     void setDeadzone(double deadzone) { mDeadzone = deadzone; }
+    
+    // Set joystick position from external source
+    void setExternalControl(double forward, double turn);
+    bool isExternallyControlled() const { return mExternalControl; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -49,6 +54,8 @@ private:
     double mDeadzone;
     double mLastForward;
     double mLastTurn;
+    bool mExternalControl;
+    QElapsedTimer mExternalControlTimeout;
     
     void updateJoystickPositionFromMouse(const QPoint &mousePos);
     void normalizeJoystickPosition();

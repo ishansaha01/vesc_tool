@@ -3,6 +3,7 @@
 #include <QBrush>
 #include <QPen>
 #include <QFontMetrics>
+#include <QElapsedTimer>
 #include <cmath>
 
 DirectionalJoystick::DirectionalJoystick(QWidget *parent) : QWidget(parent)
@@ -16,6 +17,7 @@ DirectionalJoystick::DirectionalJoystick(QWidget *parent) : QWidget(parent)
     mDeadzone = 0.1;
     mLastForward = 0.0;
     mLastTurn = 0.0;
+    mExternalControl = false;
     
     // Set up timer for joystick updates
     mTimer.setInterval(50); // 50ms interval for smooth control
@@ -29,6 +31,9 @@ DirectionalJoystick::DirectionalJoystick(QWidget *parent) : QWidget(parent)
     
     // Set mouse tracking to capture mouse movements
     setMouseTracking(true);
+    
+    // Start the external control timeout timer
+    mExternalControlTimeout.start();
 }
 
 DirectionalJoystick::~DirectionalJoystick()
@@ -58,9 +63,20 @@ void DirectionalJoystick::paintEvent(QPaintEvent *event)
     mJoystickRadius = size * 0.4;
     mJoystickCenter = QPointF(w / 2, h / 2);
     
-    // If joystick is not active, center it
-    if (!mJoystickActive) {
+    // If joystick is not active and not externally controlled, center it
+    if (!mJoystickActive && !mExternalControl) {
         mJoystickPos = mJoystickCenter;
+    }
+    
+    // Check if external control has timed out (500ms)
+    if (mExternalControl && mExternalControlTimeout.elapsed() > 500) {
+        mExternalControl = false;
+        if (!mJoystickActive) {
+            mJoystickPos = mJoystickCenter;
+            mLastForward = 0.0;
+            mLastTurn = 0.0;
+            stopMotors();
+        }
     }
     
     // Draw outer circle (joystick boundary)
@@ -78,10 +94,15 @@ void DirectionalJoystick::paintEvent(QPaintEvent *event)
     painter.drawLine(QPointF(w/2, h/2 - mJoystickRadius), QPointF(w/2, h/2 + mJoystickRadius));
     painter.drawLine(QPointF(w/2 - mJoystickRadius, h/2), QPointF(w/2 + mJoystickRadius, h/2));
     
-    // Draw joystick handle
+    // Draw joystick handle with different color if externally controlled
     QRadialGradient gradient(mJoystickPos, mJoystickRadius * 0.3);
-    gradient.setColorAt(0, QColor(60, 60, 200));
-    gradient.setColorAt(1, QColor(30, 30, 150));
+    if (mExternalControl) {
+        gradient.setColorAt(0, QColor(200, 60, 60));  // Red for external control
+        gradient.setColorAt(1, QColor(150, 30, 30));
+    } else {
+        gradient.setColorAt(0, QColor(60, 60, 200));  // Blue for manual control
+        gradient.setColorAt(1, QColor(30, 30, 150));
+    }
     painter.setPen(QPen(Qt::black, 1));
     painter.setBrush(gradient);
     painter.drawEllipse(mJoystickPos, mJoystickRadius * 0.3, mJoystickRadius * 0.3);
@@ -111,6 +132,12 @@ void DirectionalJoystick::paintEvent(QPaintEvent *event)
     
     painter.drawText(QPointF(10, h - 30), forwardText);
     painter.drawText(QPointF(10, h - 10), turnText);
+    
+    // Draw control source indicator
+    if (mExternalControl) {
+        painter.setPen(Qt::red);
+        painter.drawText(QPointF(10, h - 50), "TCP Control Active");
+    }
 }
 
 void DirectionalJoystick::mousePressEvent(QMouseEvent *event)
@@ -315,4 +342,32 @@ void DirectionalJoystick::stopMotors()
     
     mLastForward = 0.0;
     mLastTurn = 0.0;
+}
+
+void DirectionalJoystick::setExternalControl(double forward, double turn)
+{
+    // Clamp values to valid range
+    forward = qBound(-1.0, forward, 1.0);
+    turn = qBound(-1.0, turn, 1.0);
+    
+    // Set joystick position based on forward and turn values
+    double x = turn * mJoystickRadius;
+    double y = -forward * mJoystickRadius; // Invert Y axis for intuitive control
+    
+    mJoystickPos = mJoystickCenter + QPointF(x, y);
+    mLastForward = forward;
+    mLastTurn = turn;
+    
+    // Mark as externally controlled and reset timeout
+    mExternalControl = true;
+    mExternalControlTimeout.restart();
+    
+    // Start the timer if not already running
+    if (!mTimer.isActive() && mVesc && mVesc->isPortConnected()) {
+        mTimer.start();
+    }
+    
+    // Update motors and visual
+    updateMotors();
+    update();
 }

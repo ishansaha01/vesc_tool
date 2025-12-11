@@ -13,6 +13,7 @@
 #include <QTimer>
 #include "vescinterface.h"
 #include "widgets/directionaljoystick.h"
+#include "tcpserversimple.h"
 
 namespace Ui {
 class PageJoystickControl;
@@ -36,15 +37,29 @@ private slots:
     void onPrimaryCanIdChanged(int value);
     void onSecondaryCanIdChanged(int value);
     void onResetButtonClicked();
+    void onTcpServerToggled(bool checked);
+    void onTcpPortChanged(int port);
+    void onTcpForwardScaleChanged(double value);
+    void onTcpTurnScaleChanged(double value);
+    void onTcpDataReceived(const QByteArray &data);
+    void onIdealBallSizeChanged(int value);
 
 private:
     Ui::PageJoystickControl *ui;
     VescInterface *mVesc;
     DirectionalJoystick *mJoystick;
     QTimer *mAliveTimer;
+    TcpServerSimple *mTcpServer;
+    int mTcpPort;
+    bool mTcpServerEnabled;
+    double mTcpForwardScale;
+    double mTcpTurnScale;
+    int mIdealBallSize;
     
     void saveSettings();
     void loadSettings();
+    void processJoystickData(double forward, double turn);
+    void onIdealBallSizeChanged(int value);
 };
 
 #endif // PAGEJOYSTICKCONTROL_H
