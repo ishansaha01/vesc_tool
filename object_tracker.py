@@ -173,7 +173,8 @@ class BallTracker:
                     forward_value = radius
                     
                     # Send data to VESC Tool
-                    self.send_joystick_data(forward_value, position_lr/100)
+                    # Negate position_lr to invert left/right direction
+                    self.send_joystick_data(forward_value, -position_lr/100)
                     
                     # Display raw values
                     print(f"Size: {radius}, Position from center: {position_lr} pixels")
