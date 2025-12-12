@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ball Tracker with TCP Output and Visual Display
-Tracks a specific colored ball (#CBF026), displays camera feed with detection visualization,
+Green Ball Tracker with TCP Output and Visual Display
+Tracks green objects, displays camera feed with detection visualization,
 and sends raw position data to VESC Tool over TCP.
 
 Protocol:
@@ -24,7 +24,7 @@ import socket
 import argparse
 import sys
 
-class BallTracker:
+class GreenBallTracker:
     def __init__(self, host='localhost', port=65102):
         # TCP connection parameters
         self.host = host
@@ -41,23 +41,9 @@ class BallTracker:
         self.picam2.start()
         time.sleep(2)  # Camera warm-up
         
-        # Target ball color (#CBF026 / RGB(200,240,38))
-        # Convert RGB to HSV for more reliable color detection
-        rgb_color = np.uint8([[[38, 240, 200]]])  # BGR format for OpenCV
-        hsv_color = cv2.cvtColor(rgb_color, cv2.COLOR_BGR2HSV)[0][0]
-        
-        # Create a color range with tolerance around the target color
-        self.color_tolerance = 15
-        self.lower_color = np.array([
-            max(0, hsv_color[0] - self.color_tolerance),
-            max(0, hsv_color[1] - 50),
-            max(0, hsv_color[2] - 50)
-        ])
-        self.upper_color = np.array([
-            min(179, hsv_color[0] + self.color_tolerance),
-            min(255, hsv_color[1] + 50),
-            min(255, hsv_color[2] + 50)
-        ])
+        # Green color range in HSV
+        self.lower_green = np.array([35, 50, 50])
+        self.upper_green = np.array([85, 255, 255])
         
         # Detection parameters
         self.min_radius = 10
@@ -107,13 +93,13 @@ class BallTracker:
             self.connected = False
             return False
         
-    def detect_ball(self, frame):
-        """Detect ball with specific color (#CBF026) in frame using color detection"""
+    def detect_green_ball(self, frame):
+        """Detect green ball in frame using color detection"""
         # Convert to HSV color space
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        # Create mask for target ball color
-        mask = cv2.inRange(hsv, self.lower_color, self.upper_color)
+        # Create mask for green color
+        mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
         
         # Apply morphological operations to reduce noise
         kernel = np.ones((5, 5), np.uint8)
@@ -148,8 +134,8 @@ class BallTracker:
         """Main tracking loop"""
         try:
             # Create a named window
-            cv2.namedWindow("Ball Tracker", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Ball Tracker", 640, 360)  # Half resolution for display
+            cv2.namedWindow("Green Ball Tracker", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("Green Ball Tracker", 640, 360)  # Half resolution for display
             
             while True:
                 # Capture frame
@@ -159,8 +145,8 @@ class BallTracker:
                 # Make a copy for display
                 display_frame = frame.copy()
                 
-                # Detect target ball
-                position, radius = self.detect_ball(frame)
+                # Detect green ball
+                position, radius = self.detect_green_ball(frame)
                 
                 # Process detection results
                 if position is not None:
@@ -180,8 +166,7 @@ class BallTracker:
                     print(f"Size: {radius}, Position from center: {position_lr} pixels")
                     
                     # Draw the circle and center point on the display frame
-                    # Use the actual ball color for the circle (CBF026 in BGR format)
-                    cv2.circle(display_frame, (x, y), radius, (38, 240, 200), 2)
+                    cv2.circle(display_frame, (x, y), radius, (0, 255, 0), 2)
                     cv2.circle(display_frame, (x, y), 5, (0, 0, 255), -1)
                     
                     # Add text with information
@@ -199,7 +184,7 @@ class BallTracker:
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
                 # Display the frame
-                cv2.imshow("Ball Tracker", display_frame)
+                cv2.imshow("Green Ball Tracker", display_frame)
                 
                 # Check for key press - exit on 'q'
                 key = cv2.waitKey(1) & 0xFF
@@ -218,14 +203,14 @@ class BallTracker:
             self.disconnect()
 
 def main():
-    parser = argparse.ArgumentParser(description='Ball Tracker with TCP Output')
+    parser = argparse.ArgumentParser(description='Green Ball Tracker with TCP Output')
     parser.add_argument('--host', default='localhost', help='VESC Tool host (default: localhost)')
     parser.add_argument('--port', type=int, default=65102, help='VESC Tool TCP port (default: 65102)')
     
     args = parser.parse_args()
     
     # Create tracker and connect to TCP server
-    tracker = BallTracker(host=args.host, port=args.port)
+    tracker = GreenBallTracker(host=args.host, port=args.port)
     if not tracker.connect():
         print("Failed to connect to TCP server. Exiting.")
         sys.exit(1)
