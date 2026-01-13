@@ -590,6 +590,7 @@
    <addaction name="separator"/>
    <addaction name="actionKeyboardControl"/>
    <addaction name="actionGamepadControl"/>
+   <addaction name="actionJoystickControl"/>
    <addaction name="actionRtData"/>
    <addaction name="actionRtDataApp"/>
    <addaction name="actionIMU"/>
@@ -1119,6 +1120,14 @@ p, li { white-space: pre-wrap; }
    </property>
    <property name="toolTip">
     <string>Use Gamepad Control</string>
+   </property>
+  </action>
+  <action name="actionJoystickControl">
+   <property name="text">
+    <string>Joystick Control</string>
+   </property>
+   <property name="toolTip">
+    <string>Control two motors with a virtual joystick</string>
    </property>
   </action>
   <action name="actionParameterEditorCustomConf0">

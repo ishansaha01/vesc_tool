@@ -70,6 +70,7 @@
 #include "pages/pageespprog.h"
 #include "pages/pagevescpackage.h"
 #include "pages/pagedisplaytool.h"
+#include "pages/pagejoystickcontrol.h"
 
 namespace Ui {
 class MainWindow;
@@ -160,6 +161,7 @@ private slots:
     void on_actionGamepadControl_triggered(bool checked);   
     void on_actionPreferences_triggered();
     void on_actionRestartLispBM_triggered();
+    void on_actionJoystickControl_triggered();
 
 private:
     Ui::MainWindow *ui;
@@ -232,6 +234,7 @@ private:
     PageLisp *mPageLisp;
     PageEspProg *mPageEspProg;
     PageDisplayTool *mPageDisplayTool;
+    PageJoystickControl *mPageJoystickControl;
     Preferences *mPreferences;
 
     void addPageItem(QString name,
